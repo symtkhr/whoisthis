@@ -7,13 +7,15 @@
 <title>WhoIsThis</title>
 <style type="text/css">
 body {
-    width: 400px;
+      background: #eee;
 }
 #main {
+    background: #fff;
+    width: 400px;
     position:relative;
-}
-#quiz label {
-   display: inline-block;
+    height: 450px;
+    overflow:hidden;
+    margin:0 auto;
 }
 h1 {
   background-color:#fdc;
@@ -21,26 +23,6 @@ h1 {
   font-size:25px;
   line-height:35px;
   height: 35px;
-}
-#quiz ul {
-  padding: 0 20px;
-  margin: 0 0;
-}
-#timer {
-    border-radius: 15px;
-    vertical-align: middle;
-    background-color: #f99;
-    width: 300px;
-    height: 30px;
-    line-height:30px;
-    margin: 2px;
-    display:inline-block;
-    text-align:right;
-    padding: 0 5px;
-    overflow: hidden;
-}
-#timer span {
-    font-size: 80%;
 }
 #qid {
   float:left;
@@ -53,74 +35,110 @@ h1 {
   display:block;
   text-align:center;
 }
+#dumpresult {
+    float:right;
+    display:none;
+}
+#result li span {
+    font-size: 200%;
+    color: red;
+}
+#result textarea {
+    height: 200px;
+}
 #photo {
     height:300px;
     width: 100%;
-}
-#top, #ansname {
-    line-height: 24px;
-}
-#suggest {
-    color:gray;
-}
-#ansname .select {
-    border: solid #999 1px;
-    color:black;
+    display:none;
+    text-align:center;
 }
 #quiz {
     height:150px;
     position:relative;
 }
-#top {
-    display:flex;
+#ui {
+    background-color:white; opacity:.9; position:absolute; padding:2px; box-sizing:border-box; bottom:0; width:100%;
 }
-#suggest {
-    border:1px solid #ccc;
-    position:relative;
-    flex:1;
-    background-color:white;
+#ui.ending {
+    height:100px;
+    overflow:hidden;
+    text-align:center;
+    white-space:nowrap;
+    color: #24a;
+    font-size:30px;
+    cursor: pointer;
 }
-#qresult {
-    position:absolute; top:20px; left:10px; width:300px;  border:1px solid green; background-color:#cfc; opacity:.8;
+#timer {
+    border-radius: 15px;
+    vertical-align: middle;
+    background-color: #f99;
+    width: 0;
+    height: 30px;
+    line-height:30px;
+    margin: 2px;
+    display:inline-block;
+    text-align:right;
+    padding: 0 5px;
+    overflow: hidden;
+}
+#timer span {
+    font-size: 80%;
 }
 .read {
     display:inline-block;
     width: 30px;
     height:30px;
-    font-size: 25px;
-    line-height:30px;
     border:1px solid gray;
     vertical-align: middle;
     text-align:center;
     background: #ccc;
     margin-left:3px;
 }
-#read {
+#correct, #read {
+    font-size: 25px;
+    line-height:30px;
+    font-size: 25px;
     height: 35px;
 }
-#read.miss .read {
+#ui.miss .read, #ui.miss #answer, #answer.tmpmiss {
     background: #fcc;
 }
-#read.clear .read {
+#ui.miss #correct {
+    color: red;
+}
+#ui.clear .read, #ui.clear #answer, #ui.clear #timer {
     background: #cfc;
+}
+#ui.clear #correct {
+    color: green;
 }
 .read.close span {
     display:none;
 }
-#correct, #answer, #read {
+#answer {
     font-size: 20px;
+    width:95%;
 }
 </style>
 
 <body>
 <div id="main">
   <span id="qid"></span>
+  <button id="dumpresult">Result</button>
   <h1>Who is this?</h1>
   <div id="photo"></div>
-  <div style="background-color:white; opacity:.9;">
+  <div id="result">
+    <fieldset><legend>ルール</legend>
+      表示される写真の人物の氏名を答えてください。<br/>
+      下の入力欄に記入してEnterで解答します。<br/>
+      20秒以内に何度でも解答可。かな解答可。
+      <div style="text-align:right;">(作成: 2023-08-16)</div>
+    </fieldset>
+  </div>
+  <div id="ui">
     <span id="correct"></span><span id="timer"></span>
-    <div id="read"></div>
-    <input id="answer" style="width:90%; font-size:20px;" placeholder="Enterで開始" />
+    <div id="read"><span class="read"></span></div>
+    <input id="answer" />
   </div>
 </div>
 
@@ -167,6 +185,7 @@ String.prototype.sanitize = function() {
 const Quiz = function() {
     let qid = -1;
     let table = [];
+    let miss = [];
 
     const wait_next = () => {
         qid++;
@@ -175,6 +194,11 @@ const Quiz = function() {
             $id("answer").value = "";
             make_quiz(qid);
         };
+        $id("answer").placeholder = "Enterで開始";
+        if (qid) {
+            $id("dumpresult").onclick = () => { dump_result(qid); };
+            $id("dumpresult").style.display = "inline";
+        }
     };
     const draw_timer = (rest) => {
         $id("timer").innerHTML = (rest < 4 ? "" : `<span>残り</span>`) + `${rest}<span>秒</span>`;
@@ -186,19 +210,21 @@ const Quiz = function() {
 
         let rest = 20;
         let q = this.table[i];
-        if (!q) return ending();
+        if (!q) return dump_result(i);
 
+        $id("dumpresult").style.display = "none";
+        $id("result").style.display = "none";
+        $id("photo").style.display = "block";
         $id("answer").placeholder = "ここに人名を入力";
+        $id("answer").style.backgroundColor = "";
         $id("read").innerHTML = Array.from(q.read).filter(c => c != " ")
             .map(c => `<span class="read close"><span>${c}</span></span>`).join("");
+        $id("ui").classList = [];
         $id("qid").innerHTML = 'Q' + (i + 1) + '<span style="font-size:70%;">/' + this.table.length + "</span>"
-        $id("read").classList = [];
-        $id("correct").style.color = "red";
         $id("correct").innerText = "";
         $id("photo").innerHTML = `<img src="${q.photo}" style="width:100%;"/>`;
         $q("#photo img")[0].onload = () => {
             let h = $q("#photo img")[0].height;
-            console.log("j=",h);
             if (350 < h) $q("#photo img")[0].style.width = parseInt(100 * 350 / h) + "%";
             rest = 20;
             draw_timer(rest);
@@ -214,16 +240,18 @@ const Quiz = function() {
             if (r[0] + (k[1] || "") == input) return true;
             return false;
         };
-        
+
         const check_answer = () => {
             let key = $id("answer").value.trim();
             if (!check_answer_value(key, q.name, q.read)) return sounds("chin");
+
+            // clear event
             clearInterval(timer);
             sounds("clear");
             $id("correct").innerText = q.name;
-            $id("read").classList = ["clear"];
-            $id("correct").style.color = "green";
+            $id("ui").classList = ["clear"];
             $c("close").forEach($div => $div.classList.remove("close"));
+            $id("timer").style.width = "auto";
             wait_next();
             return true;
         };
@@ -232,41 +260,81 @@ const Quiz = function() {
             rest--;
             sounds("tick");
             draw_timer(rest);
-
             if (16 <= rest) return;
+
+            // open hint
             let len0 = $c("read").length;
             let len = $c("close").length;
             if ((0 < rest) && len <= Math.ceil(rest / 16 * len0)) return;
             let i = parseInt(Math.random() * len);
             $c("close")[i].classList.remove("close");
             if (0 < rest) return;
-            $id("timer").style.display = "none";
+
+            // timeout
             clearInterval(timer);
-            $id("read").classList = ["miss"];
+            $id("timer").style.display = "none";
+            $id("ui").classList = ["miss"];
             $id("correct").innerText = q.name;
-            check_answer();
+            if (check_answer()) return;
+            miss.push(q.name);
             wait_next();
         }, 1000);
 
         $id("answer").onkeyup = (e) => {
+            $id("answer").classList = [];
             if (e.key != "Enter") return;
-            check_answer();
+            if (!check_answer())
+                $id("answer").classList = ["tmpmiss"];
         };
     };
 
-    let ending = () => {
-        $id("photo").innerHTML = "Finish!";
-        $id("read").innerHTML = "";
-        $id("answer").placeholder = "おつかれさまでした。";
+    let dump_result = (qid) => {
+        $id("photo").style.display = "none";
+        $id("result").innerHTML =
+            `<ul><li>正答率: <span>${parseInt(100 - 100 * miss.length / qid)}%</span> (${qid - miss.length}/${qid})`
+            + (miss.length == 0  ? `` : `<li>誤答(${miss.length}): <br/><textarea>${miss.join("\n")}</textarea>`)
+            + `</ul>`;
+        $id("result").style.display = "block";
+        $id("dumpresult").style.display = "none";
+        if (qid != this.table.length) return;
+
+        // experience all photos
+        $id("ui").innerText = "Thanks for playing!";
+        $id("ui").classList = ["ending"];
+        sounds("fin");
+        if (miss.length) return;
+
+        // perfect clear
+        let timer = null;
+        let dx = 1;
+        $id("ui").innerHTML = "Perfect!<br/>Congratulations!!";
+        $id("ui").style.height = "300px";
+        $id("ui").style.fontSize = "30px";
+        $id("ui").onclick = () => {
+            if (timer) {
+                clearInterval(timer);
+                timer = null;
+                return;
+            }
+            timer = setInterval(() => {
+                let x = parseInt($id("ui").style.fontSize);
+                if (x < 20) dx = 1;
+                if (40 < x) dx = -1;
+                $id("ui").style.fontSize = (x + dx) + "px";
+            }, 20);
+        };
+        $id("ui").onclick();
     };
     
     this.make_quiz = make_quiz;
     this.wait_next = wait_next;
     this.dump_table = () => this.table;
+    this.dump_miss = () => miss;
     this.qid = () => qid;
     this.dump_quiz = () => {
-        $id("photo").innerHTML = table.sort((a,b) => a.read < b.read ? -1 : 1)
+        $id("photo").innerHTML = this.table.sort((a,b) => a.read < b.read ? -1 : 1)
             .map(v => v.name + `:<img src="${v.photo}" loading=lazy width=300 />`).join("<br/>");
+        $id("photo").style.overflow = "scroll";
     };
 };
 
@@ -277,7 +345,7 @@ loadfile("qlist.txt", (table) => {
         if (!v) return;
         let r = v.split("\t");
         return {name:r[1],read:r[0],photo:r[2]};
-    }).filter(v => v);//.filter(v => v.read.indexOf("・")!=-1);
+    }).filter(v => v);
     quiz.table.shuffle();
     quiz.wait_next();
     $id("answer").focus();
